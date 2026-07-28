@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"os"
 	"time"
+
+	"github.com/donghquinn/websocket-test/engine"
 )
 
-func printLiveLine(sn Snapshot) {
+func printLiveLine(sn engine.Snapshot) {
 	sentRate := 0.0
 	recvRate := 0.0
 	if sn.WindowSeconds > 0 {
@@ -27,7 +29,7 @@ func printLiveLine(sn Snapshot) {
 	fmt.Println(line)
 }
 
-func printFinalReport(sn Snapshot) {
+func printFinalReport(sn engine.Snapshot) {
 	fmt.Println()
 	fmt.Println("==================== Summary ====================")
 	fmt.Printf("Duration:            %s\n", sn.Elapsed.Round(time.Millisecond))
@@ -83,7 +85,7 @@ type jsonReport struct {
 	LatencyMaxMs       float64 `json:"latency_max_ms,omitempty"`
 }
 
-func writeJSONReport(path string, sn Snapshot) error {
+func writeJSONReport(path string, sn engine.Snapshot) error {
 	r := jsonReport{
 		DurationSeconds: sn.Elapsed.Seconds(),
 		ConnectAttempts: sn.ConnectAttempts,
