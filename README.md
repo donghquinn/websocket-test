@@ -36,8 +36,13 @@ go build -o wsstress .
 | `-connect-timeout` | `10s` | Handshake timeout per connection |
 | `-write-timeout` | `5s` | Write deadline per message |
 | `-interval` | `2s` | Interval between live stats lines |
-| `-output` | | Path to write a final JSON report |
+| `-output` | `wsstress-report-<timestamp>.json` | Path to write the final JSON report |
+| `-no-report` | `false` | Don't write a JSON report file |
 | `-quiet` | `false` | Suppress live stats, print only the final summary |
+
+Every run writes a JSON report by default (`wsstress-report-YYYYMMDD-HHMMSS.json`
+in the current directory). Pass `-output <path>` to control the location, or
+`-no-report` to skip writing one.
 
 ### Measuring latency
 

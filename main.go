@@ -53,7 +53,7 @@ func main() {
 	final := st.Final()
 	printFinalReport(final)
 
-	if cfg.Output != "" {
+	if !cfg.NoReport && cfg.Output != "" {
 		if err := writeJSONReport(cfg.Output, final); err != nil {
 			fmt.Fprintln(os.Stderr, "wsstress: failed to write report:", err)
 			os.Exit(1)

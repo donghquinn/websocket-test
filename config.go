@@ -47,7 +47,12 @@ type Config struct {
 	WriteTimeout   time.Duration
 	Interval       time.Duration
 	Output         string
+	NoReport       bool
 	Quiet          bool
+}
+
+func defaultReportName() string {
+	return fmt.Sprintf("wsstress-report-%s.json", time.Now().Format("20060102-150405"))
 }
 
 func parseConfig(args []string) (*Config, error) {
@@ -69,7 +74,8 @@ func parseConfig(args []string) (*Config, error) {
 	fs.DurationVar(&cfg.ConnectTimeout, "connect-timeout", 10*time.Second, "handshake timeout per connection")
 	fs.DurationVar(&cfg.WriteTimeout, "write-timeout", 5*time.Second, "write deadline per message")
 	fs.DurationVar(&cfg.Interval, "interval", 2*time.Second, "interval between live stats reports")
-	fs.StringVar(&cfg.Output, "output", "", "path to write a final JSON report (optional)")
+	fs.StringVar(&cfg.Output, "output", defaultReportName(), "path to write the final JSON report")
+	fs.BoolVar(&cfg.NoReport, "no-report", false, "don't write a JSON report file")
 	fs.BoolVar(&cfg.Quiet, "quiet", false, "suppress live interval reports, print only the final summary")
 
 	if err := fs.Parse(args); err != nil {
