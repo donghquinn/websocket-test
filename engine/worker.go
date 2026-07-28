@@ -1,4 +1,4 @@
-package main
+package engine
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// envelope is the wire format used when -echo is set: the client stamps a
+// envelope is the wire format used when Echo is set: the client stamps a
 // send timestamp and expects the server to echo the message back verbatim,
 // so the read loop can recover it and compute round-trip latency.
 type envelope struct {
@@ -30,7 +30,9 @@ func randomPayload(size int, rng *rand.Rand) []byte {
 	return b
 }
 
-func runWorker(ctx context.Context, cfg *Config, st *Stats, headers http.Header) {
+// RunWorker drives a single simulated client connection until ctx is done or
+// the connection errors out. It blocks until the connection closes.
+func RunWorker(ctx context.Context, cfg *Config, st *Stats, headers http.Header) {
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	basePayload := []byte(cfg.Payload)
 	if len(basePayload) == 0 {

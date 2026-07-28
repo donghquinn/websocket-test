@@ -1,4 +1,4 @@
-package main
+package engine
 
 import (
 	"sort"
@@ -33,14 +33,14 @@ func NewStats() *Stats {
 	return &Stats{start: time.Now()}
 }
 
-func (s *Stats) ConnectAttempt()               { atomic.AddInt64(&s.connectAttempts, 1) }
-func (s *Stats) ConnectSuccess()               { atomic.AddInt64(&s.connectSuccess, 1) }
-func (s *Stats) ConnectFail()                  { atomic.AddInt64(&s.connectFail, 1) }
-func (s *Stats) ConnActive(delta int64)        { atomic.AddInt64(&s.activeConns, delta) }
-func (s *Stats) Disconnect()                   { atomic.AddInt64(&s.disconnects, 1) }
-func (s *Stats) MsgSent(bytes int)             { atomic.AddInt64(&s.msgsSent, 1); atomic.AddInt64(&s.bytesSent, int64(bytes)) }
-func (s *Stats) MsgRecv(bytes int)             { atomic.AddInt64(&s.msgsRecv, 1); atomic.AddInt64(&s.bytesRecv, int64(bytes)) }
-func (s *Stats) Error()                        { atomic.AddInt64(&s.errors, 1) }
+func (s *Stats) ConnectAttempt()        { atomic.AddInt64(&s.connectAttempts, 1) }
+func (s *Stats) ConnectSuccess()        { atomic.AddInt64(&s.connectSuccess, 1) }
+func (s *Stats) ConnectFail()           { atomic.AddInt64(&s.connectFail, 1) }
+func (s *Stats) ConnActive(delta int64) { atomic.AddInt64(&s.activeConns, delta) }
+func (s *Stats) Disconnect()            { atomic.AddInt64(&s.disconnects, 1) }
+func (s *Stats) MsgSent(bytes int)      { atomic.AddInt64(&s.msgsSent, 1); atomic.AddInt64(&s.bytesSent, int64(bytes)) }
+func (s *Stats) MsgRecv(bytes int)      { atomic.AddInt64(&s.msgsRecv, 1); atomic.AddInt64(&s.bytesRecv, int64(bytes)) }
+func (s *Stats) Error()                 { atomic.AddInt64(&s.errors, 1) }
 
 func (s *Stats) Latency(d time.Duration) {
 	s.mu.Lock()
@@ -49,37 +49,37 @@ func (s *Stats) Latency(d time.Duration) {
 }
 
 // Snapshot describes stats over a window: either "since last report" (live
-// interval reports) or "since test start" (final summary).
+// interval reports) or "since test start" (final summary). Duration fields
+// marshal as nanoseconds (Go's default for time.Duration); consumers convert
+// to whatever unit they display.
 type Snapshot struct {
-	Elapsed         time.Duration
-	ActiveConns     int64
-	ConnectAttempts int64
-	ConnectSuccess  int64
-	ConnectFail     int64
-	Disconnects     int64
-	MsgsSent        int64
-	BytesSent       int64
-	MsgsRecv        int64
-	BytesRecv       int64
-	Errors          int64
+	Elapsed         time.Duration `json:"elapsedNs"`
+	ActiveConns     int64         `json:"activeConns"`
+	ConnectAttempts int64         `json:"connectAttempts"`
+	ConnectSuccess  int64         `json:"connectSuccess"`
+	ConnectFail     int64         `json:"connectFail"`
+	Disconnects     int64         `json:"disconnects"`
+	MsgsSent        int64         `json:"msgsSent"`
+	BytesSent       int64         `json:"bytesSent"`
+	MsgsRecv        int64         `json:"msgsRecv"`
+	BytesRecv       int64         `json:"bytesRecv"`
+	Errors          int64         `json:"errors"`
 
-	WindowMsgsSent int64
-	WindowMsgsRecv int64
-	WindowSeconds  float64
+	WindowMsgsSent int64   `json:"windowMsgsSent"`
+	WindowMsgsRecv int64   `json:"windowMsgsRecv"`
+	WindowSeconds  float64 `json:"windowSeconds"`
 
-	LatencyCount int
-	LatencyMin   time.Duration
-	LatencyAvg   time.Duration
-	LatencyP50   time.Duration
-	LatencyP90   time.Duration
-	LatencyP99   time.Duration
-	LatencyMax   time.Duration
+	LatencyCount int           `json:"latencyCount"`
+	LatencyMin   time.Duration `json:"latencyMinNs"`
+	LatencyAvg   time.Duration `json:"latencyAvgNs"`
+	LatencyP50   time.Duration `json:"latencyP50Ns"`
+	LatencyP90   time.Duration `json:"latencyP90Ns"`
+	LatencyP99   time.Duration `json:"latencyP99Ns"`
+	LatencyMax   time.Duration `json:"latencyMaxNs"`
 }
 
-// window snapshot also advances the "last report" cursor, so repeated calls
-// report only newly-observed latency samples each time.
-func (s *Stats) window(prevSent, prevRecv int64, since time.Time) Snapshot {
-	sn := Snapshot{
+func (s *Stats) cumulative() Snapshot {
+	return Snapshot{
 		Elapsed:         time.Since(s.start),
 		ActiveConns:     atomic.LoadInt64(&s.activeConns),
 		ConnectAttempts: atomic.LoadInt64(&s.connectAttempts),
@@ -92,6 +92,14 @@ func (s *Stats) window(prevSent, prevRecv int64, since time.Time) Snapshot {
 		BytesRecv:       atomic.LoadInt64(&s.bytesRecv),
 		Errors:          atomic.LoadInt64(&s.errors),
 	}
+}
+
+// Window reports stats since the last call to Window, advancing an internal
+// cursor. Intended for a single sequential consumer (e.g. the CLI's live
+// interval printer); callers that need repeatable, side-effect-free reads
+// (e.g. a GUI polling loop) should use Final instead.
+func (s *Stats) Window(prevSent, prevRecv int64, since time.Time) Snapshot {
+	sn := s.cumulative()
 	sn.WindowMsgsSent = sn.MsgsSent - prevSent
 	sn.WindowMsgsRecv = sn.MsgsRecv - prevRecv
 	sn.WindowSeconds = time.Since(since).Seconds()
@@ -106,21 +114,10 @@ func (s *Stats) window(prevSent, prevRecv int64, since time.Time) Snapshot {
 }
 
 // Final computes a summary over every latency sample collected during the
-// whole run, regardless of what's already been reported in windows.
+// whole run so far. Safe to call repeatedly (e.g. from a GUI polling loop)
+// since it never mutates cursor state.
 func (s *Stats) Final() Snapshot {
-	sn := Snapshot{
-		Elapsed:         time.Since(s.start),
-		ActiveConns:     atomic.LoadInt64(&s.activeConns),
-		ConnectAttempts: atomic.LoadInt64(&s.connectAttempts),
-		ConnectSuccess:  atomic.LoadInt64(&s.connectSuccess),
-		ConnectFail:     atomic.LoadInt64(&s.connectFail),
-		Disconnects:     atomic.LoadInt64(&s.disconnects),
-		MsgsSent:        atomic.LoadInt64(&s.msgsSent),
-		BytesSent:       atomic.LoadInt64(&s.bytesSent),
-		MsgsRecv:        atomic.LoadInt64(&s.msgsRecv),
-		BytesRecv:       atomic.LoadInt64(&s.bytesRecv),
-		Errors:          atomic.LoadInt64(&s.errors),
-	}
+	sn := s.cumulative()
 
 	s.mu.Lock()
 	all := append([]time.Duration(nil), s.latencies...)

@@ -5,6 +5,11 @@ against any WebSocket endpoint, optionally ramping up gradually, and drives
 per-connection message load while reporting live and final stats (throughput,
 error counts, and round-trip latency percentiles when using `-echo`).
 
+The connection/stats engine lives in `engine/` as an importable package.
+[`../websocket_test_gui`](../websocket_test_gui) is a sibling web-dashboard
+front-end that reuses it via a local `go.mod` replace directive, if you'd
+rather drive tests from a browser than flags.
+
 ## Build
 
 ```
